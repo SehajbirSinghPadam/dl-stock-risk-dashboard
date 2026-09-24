@@ -2,9 +2,12 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
 
-st.set_page_config(page_title="AI Stock Analysis System", layout="wide")
-st.title("AI Stock Analysis System")
+st.set_page_config(page_title="AI Stock Analysis System", page_icon="📈", layout="wide")
+st.title("📈 AI Stock Analysis System")
+st.caption("Group G4 | Risk analysis + dashboard | Predictions are dummy until model results are connected")
 
 stocks = {
     "Reliance": "RELIANCE.NS",
@@ -12,10 +15,20 @@ stocks = {
     "HDFC Bank": "HDFCBANK.NS",
     "Infosys": "INFY.NS",
 }
-choice = st.selectbox("Selected stock:", list(stocks.keys()))
+
+# ---------- Sidebar controls ----------
+st.sidebar.header("Controls")
+choice = st.sidebar.selectbox("Select stock", list(stocks.keys()))
+years = st.sidebar.select_slider("History (years)", options=[1, 2, 3, 5], value=5)
+risk_free_pct = st.sidebar.slider("Risk-free rate (%)", 0.0, 10.0, 6.0, 0.5)
+conf = st.sidebar.select_slider("VaR confidence (%)", options=[90, 95, 99], value=95)
+chart_type = st.sidebar.radio("Chart type", ["Line", "Candlestick"])
+show_sma = st.sidebar.checkbox("Show SMA 20", value=True)
+show_ema = st.sidebar.checkbox("Show EMA 20", value=False)
 
 
-@st.cache_data
+# ---------- Data + risk functions ----------
+@st.cache_data(ttl=3600)
 def load_data(ticker):
     end = pd.Timestamp.today()
     start = end - pd.DateOffset(years=5)
@@ -25,12 +38,17 @@ def load_data(ticker):
     return data
 
 
-def risk_summary(df, risk_free=0.06):
-    ret = df["Close"].pct_change().dropna()
+def last_years(data, n):
+    cut = data.index.max() - pd.DateOffset(years=n)
+    return data[data.index >= cut].copy()
+
+
+def risk_summary(data, risk_free=0.06, conf=95):
+    ret = data["Close"].pct_change().dropna()
     annual_vol = ret.std() * np.sqrt(252)
     cum = (1 + ret).cumprod()
-    max_dd = ((cum - cum.cummax()) / cum.cummax()).min()
-    var_95 = np.percentile(ret, 5)
+    drawdown = (cum - cum.cummax()) / cum.cummax()
+    var = np.percentile(ret, 100 - conf)
     annual_ret = ret.mean() * 252
     sharpe = (annual_ret - risk_free) / annual_vol
 
@@ -41,24 +59,111 @@ def risk_summary(df, risk_free=0.06):
     else:
         level = "High"
 
-    return annual_vol * 100, max_dd * 100, var_95 * 100, sharpe, level
+    m = {
+        "vol": round(annual_vol * 100, 2),
+        "dd": round(drawdown.min() * 100, 2),
+        "var": round(var * 100, 2),
+        "sharpe": round(sharpe, 2),
+        "level": level,
+    }
+    return m, ret, drawdown
 
 
-df = load_data(stocks[choice])
+df = last_years(load_data(stocks[choice]), years)
+df["SMA20"] = df["Close"].rolling(20).mean()
+df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
+m, ret, drawdown = risk_summary(df, risk_free_pct / 100, conf)
 
-st.subheader("Historical price chart")
-st.line_chart(df["Close"])
+# ---------- Top row ----------
+last, prev = df["Close"].iloc[-1], df["Close"].iloc[-2]
+t1, t2, t3 = st.columns(3)
+t1.metric(f"{choice} latest close", f"₹{last:,.2f}", f"{(last / prev - 1) * 100:.2f}%")
+t2.metric("Period high", f"₹{df['High'].max():,.2f}")
+t3.metric("Period low", f"₹{df['Low'].min():,.2f}")
 
-st.subheader("Predictions (dummy for now)")
-c1, c2 = st.columns(2)
-c1.metric("ML prediction", "UP")
-c2.metric("LSTM prediction", "UP")
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Price", "⚠️ Risk", "🤖 Predictions", "🆚 Compare stocks"])
 
-st.subheader("Risk analysis")
-vol, dd, var, sharpe, level = risk_summary(df)
-r1, r2, r3, r4, r5 = st.columns(5)
-r1.metric("Volatility (annual)", f"{vol:.2f}%")
-r2.metric("Max drawdown", f"{dd:.2f}%")
-r3.metric("VaR 95% (1 day)", f"{var:.2f}%")
-r4.metric("Sharpe ratio", f"{sharpe:.2f}")
-r5.metric("Risk level", level)
+# ---------- Tab 1: Price ----------
+with tab1:
+    fig = go.Figure()
+    if chart_type == "Line":
+        fig.add_trace(go.Scatter(x=df.index, y=df["Close"], name="Close", line=dict(width=2)))
+    else:
+        fig.add_trace(go.Candlestick(x=df.index, open=df["Open"], high=df["High"],
+                                     low=df["Low"], close=df["Close"], name="Price"))
+    if show_sma:
+        fig.add_trace(go.Scatter(x=df.index, y=df["SMA20"], name="SMA 20"))
+    if show_ema:
+        fig.add_trace(go.Scatter(x=df.index, y=df["EMA20"], name="EMA 20"))
+    fig.update_layout(height=420, margin=dict(l=0, r=0, t=10, b=0),
+                      xaxis_rangeslider_visible=False, hovermode="x unified")
+    st.plotly_chart(fig)
+    st.caption("Volume (kitne shares bike)")
+    st.bar_chart(df["Volume"], height=150)
+
+# ---------- Tab 2: Risk ----------
+with tab2:
+    icons = {"Low": "🟢 Low", "Medium": "🟡 Medium", "High": "🔴 High"}
+    r1, r2, r3, r4, r5 = st.columns(5)
+    r1.metric("Volatility (annual)", f"{m['vol']}%")
+    r2.metric("Max drawdown", f"{m['dd']}%")
+    r3.metric(f"VaR {conf}% (1 day)", f"{m['var']}%")
+    r4.metric("Sharpe ratio", f"{m['sharpe']}")
+    r5.metric("Risk level", icons[m["level"]])
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("Drawdown over time")
+        dd_fig = px.area(x=drawdown.index, y=drawdown * 100,
+                         labels={"x": "Date", "y": "Drawdown (%)"})
+        dd_fig.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=0))
+        st.plotly_chart(dd_fig)
+    with c2:
+        st.subheader("Daily returns spread")
+        h = px.histogram(x=ret * 100, nbins=50, labels={"x": "Daily return (%)"})
+        h.add_vline(x=m["var"], line_dash="dash", line_color="red",
+                    annotation_text=f"VaR {conf}%")
+        h.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=0), showlegend=False)
+        st.plotly_chart(h)
+
+    with st.expander("What do these risk numbers mean?"):
+        st.markdown("""
+- **Volatility:** price kitna upar-neeche hilta hai. Zyada ho to risk zyada.
+- **Max drawdown:** peak se sabse badi girawat.
+- **VaR:** is confidence pe, ek din ka loss is number se zyada bura nahi tha.
+- **Sharpe ratio:** risk ke hisaab se kitna fayda mila. 1 se upar achha hai.
+- **Risk level:** volatility ke hisaab se Low / Medium / High (hamara simple rule).
+- Risk-free rate sidebar me badal sakte ho, aur Sharpe turant badal jayega.
+""")
+
+# ---------- Tab 3: Predictions ----------
+with tab3:
+    st.info("Ye predictions abhi dummy hain. Samar ke model results aane par asli values lagengi.")
+    p1, p2 = st.columns(2)
+    p1.metric("ML prediction", "UP")
+    p2.metric("LSTM prediction", "UP")
+
+    st.subheader("Model evaluation (to be filled)")
+    eval_df = pd.DataFrame({
+        "Model": ["Logistic Regression", "Random Forest", "XGBoost", "LSTM"],
+        "Accuracy": ["-"] * 4,
+        "Precision": ["-"] * 4,
+        "Recall": ["-"] * 4,
+        "F1": ["-"] * 4,
+    })
+    st.dataframe(eval_df, hide_index=True)
+
+# ---------- Tab 4: Compare stocks ----------
+with tab4:
+    rows = []
+    for name, tk in stocks.items():
+        d = last_years(load_data(tk), years)
+        s, _, _ = risk_summary(d, risk_free_pct / 100, conf)
+        rows.append({"Stock": name, "Volatility %": s["vol"], "Max drawdown %": s["dd"],
+                     f"VaR {conf}% (1 day) %": s["var"], "Sharpe": s["sharpe"],
+                     "Risk level": s["level"]})
+    comp = pd.DataFrame(rows)
+    st.dataframe(comp, hide_index=True)
+    bar = px.bar(comp, x="Stock", y="Max drawdown %", title="Max drawdown by stock")
+    bar.update_layout(height=350)
+    st.plotly_chart(bar)
