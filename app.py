@@ -6,6 +6,29 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="AI Stock Analysis System", page_icon="📈", layout="wide")
+
+st.markdown("""
+<style>
+    div[data-testid="stMetric"] {
+        background-color: rgba(28, 131, 225, 0.08);
+        border: 1px solid rgba(150, 150, 150, 0.2);
+        padding: 12px 16px;
+        border-radius: 12px;
+    }
+    div[data-testid="stMetricValue"] { font-size: 1.5rem; }
+    .badge {
+        display: inline-block;
+        padding: 6px 18px;
+        border-radius: 20px;
+        font-weight: 700;
+        font-size: 1rem;
+    }
+    .badge-up { background-color: #1a7f37; color: white; }
+    .badge-down { background-color: #cf222e; color: white; }
+    .badge-hold { background-color: #eac54f; color: #222; }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("📈 AI Stock Analysis System")
 st.caption("Group G4 | Risk analysis + dashboard")
 
@@ -20,6 +43,13 @@ stocks = {
 }
 MODELS = ["LogReg", "RandomForest", "XGBoost", "LSTM"]
 LABELS = ["UP", "DOWN", "HOLD"]
+BADGE_CLASS = {"UP": "badge-up", "DOWN": "badge-down", "HOLD": "badge-hold"}
+
+
+def badge(label):
+    cls = BADGE_CLASS.get(label, "badge-hold")
+    return f'<span class="badge {cls}">{label}</span>'
+
 
 st.sidebar.header("Controls")
 choice = st.sidebar.selectbox("Select stock", list(stocks.keys()))
@@ -103,6 +133,9 @@ t1.metric(f"{choice} latest close", f"₹{last:,.2f}", f"{(last / prev - 1) * 10
 t2.metric("Period high", f"₹{df['High'].max():,.2f}")
 t3.metric("Period low", f"₹{df['Low'].min():,.2f}")
 
+pct_from_peak = drawdown.iloc[-1] * 100
+st.caption(f"📌 {choice} abhi apne {years}-year peak se **{abs(pct_from_peak):.1f}%** neeche hai.")
+
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Price", "⚠️ Risk", "🤖 Predictions", "🆚 Compare stocks"])
 
 with tab1:
@@ -122,6 +155,12 @@ with tab1:
     st.caption("Volume (kitne shares bike)")
     st.bar_chart(df["Volume"], height=150)
 
+    with st.expander("📄 Show raw price data"):
+        st.dataframe(df[["Open", "High", "Low", "Close", "Volume"]].tail(100), height=250)
+        st.download_button("Download this data (CSV)",
+                           df.to_csv().encode("utf-8"),
+                           f"{choice}_price_data.csv", "text/csv")
+
 with tab2:
     icons = {"Low": "🟢 Low", "Medium": "🟡 Medium", "High": "🔴 High"}
     r1, r2, r3, r4, r5 = st.columns(5)
@@ -131,7 +170,7 @@ with tab2:
     r4.metric("Sharpe ratio", f"{m['sharpe']}")
     r5.metric("Risk level", icons[m["level"]])
 
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns([1, 1, 1])
     with c1:
         st.subheader("Drawdown over time")
         dd_fig = px.area(x=drawdown.index, y=drawdown * 100,
@@ -145,6 +184,24 @@ with tab2:
                     annotation_text=f"VaR {conf}%")
         h.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=0), showlegend=False)
         st.plotly_chart(h)
+    with c3:
+        st.subheader("Volatility gauge")
+        gauge = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=m["vol"],
+            number={"suffix": "%"},
+            gauge={
+                "axis": {"range": [0, 60]},
+                "bar": {"color": "#1f77b4"},
+                "steps": [
+                    {"range": [0, 20], "color": "#d4f4dd"},
+                    {"range": [20, 30], "color": "#fff3cd"},
+                    {"range": [30, 60], "color": "#f8d7da"},
+                ],
+            },
+        ))
+        gauge.update_layout(height=300, margin=dict(l=20, r=20, t=20, b=10))
+        st.plotly_chart(gauge)
 
     with st.expander("What do these risk numbers mean?"):
         st.markdown("""
@@ -165,8 +222,12 @@ with tab3:
     if not has_preds:
         st.info("predictions.csv abhi repo me nahi hai. Samar ka data aane tak dummy values.")
         p1, p2 = st.columns(2)
-        p1.metric("ML prediction", "UP")
-        p2.metric("LSTM prediction", "UP")
+        with p1:
+            st.write("**ML prediction**")
+            st.markdown(badge("UP"), unsafe_allow_html=True)
+        with p2:
+            st.write("**LSTM prediction**")
+            st.markdown(badge("UP"), unsafe_allow_html=True)
         eval_df = pd.DataFrame({
             "Model": MODELS, "Accuracy": ["-"] * 4, "Precision": ["-"] * 4,
             "Recall": ["-"] * 4, "F1": ["-"] * 4,
@@ -177,9 +238,12 @@ with tab3:
             st.warning("Ye FAKE sample data hai, sirf testing ke liye. Report/PPT me use mat karna.")
 
         latest = preds.iloc[-1]
+        st.write(f"**Latest prediction ({latest['Date']})**")
         cols = st.columns(len(MODELS))
         for c, model in zip(cols, MODELS):
-            c.metric(f"{model} (latest)", latest[model])
+            with c:
+                st.write(f"**{model}**")
+                st.markdown(badge(latest[model]), unsafe_allow_html=True)
 
         st.subheader("Model evaluation")
         rows = []
@@ -187,7 +251,15 @@ with tab3:
             acc, prec, rec, f1 = evaluate(preds, model)
             rows.append({"Model": model, "Accuracy": round(acc, 3), "Precision": round(prec, 3),
                         "Recall": round(rec, 3), "F1": round(f1, 3)})
-        st.dataframe(pd.DataFrame(rows), hide_index=True)
+        eval_df = pd.DataFrame(rows)
+        st.dataframe(eval_df, hide_index=True)
+
+        best = eval_df.loc[eval_df["F1"].idxmax()]
+        st.success(f"🏆 Best model here: **{best['Model']}** (F1 = {best['F1']})")
+
+        st.download_button("Download evaluation table (CSV)",
+                           eval_df.to_csv(index=False).encode("utf-8"),
+                           "evaluation.csv", "text/csv")
 
         st.subheader("Confusion matrix")
         cm_model = st.selectbox("Model", MODELS, key="cm_model")
@@ -207,6 +279,18 @@ with tab4:
                      "Risk level": s["level"]})
     comp = pd.DataFrame(rows)
     st.dataframe(comp, hide_index=True)
-    bar = px.bar(comp, x="Stock", y="Max drawdown %", title="Max drawdown by stock")
+
+    safest = comp.loc[comp["Volatility %"].idxmin()]
+    riskiest = comp.loc[comp["Max drawdown %"].idxmin()]
+    ic1, ic2 = st.columns(2)
+    ic1.info(f"🟢 Safest (lowest volatility): **{safest['Stock']}** ({safest['Volatility %']}%)")
+    ic2.warning(f"🔴 Riskiest (biggest drawdown): **{riskiest['Stock']}** ({riskiest['Max drawdown %']}%)")
+
+    bar = px.bar(comp, x="Stock", y="Max drawdown %", title="Max drawdown by stock",
+                color="Max drawdown %", color_continuous_scale="Reds_r")
     bar.update_layout(height=350)
     st.plotly_chart(bar)
+
+    st.download_button("Download comparison table (CSV)",
+                       comp.to_csv(index=False).encode("utf-8"),
+                       "stock_comparison.csv", "text/csv")
