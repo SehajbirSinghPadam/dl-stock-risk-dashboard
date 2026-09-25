@@ -7,7 +7,10 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title="AI Stock Analysis System", page_icon="📈", layout="wide")
 st.title("📈 AI Stock Analysis System")
-st.caption("Group G4 | Risk analysis + dashboard | Predictions are dummy until model results are connected")
+st.caption("Group G4 | Risk analysis + dashboard")
+
+# Samar ki asli file aane ke baad ise True kar dena
+PREDICTIONS_ARE_REAL = False
 
 stocks = {
     "Reliance": "RELIANCE.NS",
@@ -15,8 +18,9 @@ stocks = {
     "HDFC Bank": "HDFCBANK.NS",
     "Infosys": "INFY.NS",
 }
+MODELS = ["LogReg", "RandomForest", "XGBoost", "LSTM"]
+LABELS = ["UP", "DOWN", "HOLD"]
 
-# ---------- Sidebar controls ----------
 st.sidebar.header("Controls")
 choice = st.sidebar.selectbox("Select stock", list(stocks.keys()))
 years = st.sidebar.select_slider("History (years)", options=[1, 2, 3, 5], value=5)
@@ -27,7 +31,6 @@ show_sma = st.sidebar.checkbox("Show SMA 20", value=True)
 show_ema = st.sidebar.checkbox("Show EMA 20", value=False)
 
 
-# ---------- Data + risk functions ----------
 @st.cache_data(ttl=3600)
 def load_data(ticker):
     end = pd.Timestamp.today()
@@ -69,12 +72,31 @@ def risk_summary(data, risk_free=0.06, conf=95):
     return m, ret, drawdown
 
 
+@st.cache_data
+def load_predictions():
+    return pd.read_csv("predictions.csv")
+
+
+def evaluate(preds, model):
+    y_true, y_pred = preds["Actual"], preds[model]
+    p_list, r_list, f_list = [], [], []
+    for lbl in LABELS:
+        tp = ((y_true == lbl) & (y_pred == lbl)).sum()
+        fp = ((y_true != lbl) & (y_pred == lbl)).sum()
+        fn = ((y_true == lbl) & (y_pred != lbl)).sum()
+        p = tp / (tp + fp) if (tp + fp) else 0
+        r = tp / (tp + fn) if (tp + fn) else 0
+        f1 = 2 * p * r / (p + r) if (p + r) else 0
+        p_list.append(p); r_list.append(r); f_list.append(f1)
+    accuracy = (y_true == y_pred).mean()
+    return accuracy, np.mean(p_list), np.mean(r_list), np.mean(f_list)
+
+
 df = last_years(load_data(stocks[choice]), years)
 df["SMA20"] = df["Close"].rolling(20).mean()
 df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
 m, ret, drawdown = risk_summary(df, risk_free_pct / 100, conf)
 
-# ---------- Top row ----------
 last, prev = df["Close"].iloc[-1], df["Close"].iloc[-2]
 t1, t2, t3 = st.columns(3)
 t1.metric(f"{choice} latest close", f"₹{last:,.2f}", f"{(last / prev - 1) * 100:.2f}%")
@@ -83,7 +105,6 @@ t3.metric("Period low", f"₹{df['Low'].min():,.2f}")
 
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Price", "⚠️ Risk", "🤖 Predictions", "🆚 Compare stocks"])
 
-# ---------- Tab 1: Price ----------
 with tab1:
     fig = go.Figure()
     if chart_type == "Line":
@@ -101,7 +122,6 @@ with tab1:
     st.caption("Volume (kitne shares bike)")
     st.bar_chart(df["Volume"], height=150)
 
-# ---------- Tab 2: Risk ----------
 with tab2:
     icons = {"Low": "🟢 Low", "Medium": "🟡 Medium", "High": "🔴 High"}
     r1, r2, r3, r4, r5 = st.columns(5)
@@ -133,27 +153,50 @@ with tab2:
 - **VaR:** is confidence pe, ek din ka loss is number se zyada bura nahi tha.
 - **Sharpe ratio:** risk ke hisaab se kitna fayda mila. 1 se upar achha hai.
 - **Risk level:** volatility ke hisaab se Low / Medium / High (hamara simple rule).
-- Risk-free rate sidebar me badal sakte ho, aur Sharpe turant badal jayega.
 """)
 
-# ---------- Tab 3: Predictions ----------
 with tab3:
-    st.info("Ye predictions abhi dummy hain. Samar ke model results aane par asli values lagengi.")
-    p1, p2 = st.columns(2)
-    p1.metric("ML prediction", "UP")
-    p2.metric("LSTM prediction", "UP")
+    try:
+        preds = load_predictions()
+        has_preds = True
+    except FileNotFoundError:
+        has_preds = False
 
-    st.subheader("Model evaluation (to be filled)")
-    eval_df = pd.DataFrame({
-        "Model": ["Logistic Regression", "Random Forest", "XGBoost", "LSTM"],
-        "Accuracy": ["-"] * 4,
-        "Precision": ["-"] * 4,
-        "Recall": ["-"] * 4,
-        "F1": ["-"] * 4,
-    })
-    st.dataframe(eval_df, hide_index=True)
+    if not has_preds:
+        st.info("predictions.csv abhi repo me nahi hai. Samar ka data aane tak dummy values.")
+        p1, p2 = st.columns(2)
+        p1.metric("ML prediction", "UP")
+        p2.metric("LSTM prediction", "UP")
+        eval_df = pd.DataFrame({
+            "Model": MODELS, "Accuracy": ["-"] * 4, "Precision": ["-"] * 4,
+            "Recall": ["-"] * 4, "F1": ["-"] * 4,
+        })
+        st.dataframe(eval_df, hide_index=True)
+    else:
+        if not PREDICTIONS_ARE_REAL:
+            st.warning("Ye FAKE sample data hai, sirf testing ke liye. Report/PPT me use mat karna.")
 
-# ---------- Tab 4: Compare stocks ----------
+        latest = preds.iloc[-1]
+        cols = st.columns(len(MODELS))
+        for c, model in zip(cols, MODELS):
+            c.metric(f"{model} (latest)", latest[model])
+
+        st.subheader("Model evaluation")
+        rows = []
+        for model in MODELS:
+            acc, prec, rec, f1 = evaluate(preds, model)
+            rows.append({"Model": model, "Accuracy": round(acc, 3), "Precision": round(prec, 3),
+                        "Recall": round(rec, 3), "F1": round(f1, 3)})
+        st.dataframe(pd.DataFrame(rows), hide_index=True)
+
+        st.subheader("Confusion matrix")
+        cm_model = st.selectbox("Model", MODELS, key="cm_model")
+        cm = pd.crosstab(preds["Actual"], preds[cm_model]).reindex(index=LABELS, columns=LABELS, fill_value=0)
+        cm_fig = px.imshow(cm, text_auto=True, color_continuous_scale="Blues",
+                           labels=dict(x="Predicted", y="Actual", color="Count"))
+        cm_fig.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0))
+        st.plotly_chart(cm_fig)
+
 with tab4:
     rows = []
     for name, tk in stocks.items():
