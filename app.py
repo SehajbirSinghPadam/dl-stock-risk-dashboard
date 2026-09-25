@@ -35,12 +35,81 @@ st.caption("Group G4 | Risk analysis + dashboard")
 # Samar ki asli file aane ke baad ise True kar dena
 PREDICTIONS_ARE_REAL = False
 
-stocks = {
-    "Reliance": "RELIANCE.NS",
-    "TCS": "TCS.NS",
-    "HDFC Bank": "HDFCBANK.NS",
-    "Infosys": "INFY.NS",
+# ---------- NSE stock universe (~170 major stocks, A to Z, multi-sector) ----------
+NSE_STOCKS = {
+    "3M India": "3MINDIA.NS", "ABB India": "ABB.NS", "Abbott India": "ABBOTINDIA.NS",
+    "ACC": "ACC.NS", "Adani Enterprises": "ADANIENT.NS", "Adani Green Energy": "ADANIGREEN.NS",
+    "Adani Ports": "ADANIPORTS.NS", "Adani Power": "ADANIPOWER.NS",
+    "Aditya Birla Capital": "ABCAPITAL.NS", "Ajanta Pharma": "AJANTPHARM.NS",
+    "Alkem Laboratories": "ALKEM.NS", "Ambuja Cements": "AMBUJACEM.NS",
+    "Angel One": "ANGELONE.NS", "APL Apollo Tubes": "APLAPOLLO.NS",
+    "Apollo Hospitals": "APOLLOHOSP.NS", "Apollo Tyres": "APOLLOTYRE.NS",
+    "Ashok Leyland": "ASHOKLEY.NS", "Asian Paints": "ASIANPAINT.NS", "Astral": "ASTRAL.NS",
+    "AU Small Finance Bank": "AUBANK.NS", "Aurobindo Pharma": "AUROPHARMA.NS",
+    "Avenue Supermarts (DMart)": "DMART.NS", "Axis Bank": "AXISBANK.NS",
+    "Bajaj Auto": "BAJAJ-AUTO.NS", "Bajaj Finance": "BAJFINANCE.NS",
+    "Bajaj Finserv": "BAJAJFINSV.NS", "Balkrishna Industries": "BALKRISIND.NS",
+    "Bandhan Bank": "BANDHANBNK.NS", "Bank of Baroda": "BANKBARODA.NS",
+    "Bharat Electronics": "BEL.NS", "Bharat Forge": "BHARATFORG.NS",
+    "Bharat Petroleum": "BPCL.NS", "Bharti Airtel": "BHARTIARTL.NS", "Biocon": "BIOCON.NS",
+    "Bosch": "BOSCHLTD.NS", "Britannia Industries": "BRITANNIA.NS", "BSE Ltd": "BSE.NS",
+    "Canara Bank": "CANBK.NS", "Castrol India": "CASTROLIND.NS", "CDSL": "CDSL.NS",
+    "CG Power": "CGPOWER.NS", "Cholamandalam Investment": "CHOLAFIN.NS", "Cipla": "CIPLA.NS",
+    "City Union Bank": "CUB.NS", "Coal India": "COALINDIA.NS", "Coforge": "COFORGE.NS",
+    "Colgate-Palmolive India": "COLPAL.NS", "Container Corp of India": "CONCOR.NS",
+    "Crompton Greaves Consumer": "CROMPTON.NS", "CRISIL": "CRISIL.NS",
+    "Cummins India": "CUMMINSIND.NS", "Dabur India": "DABUR.NS", "Delhivery": "DELHIVERY.NS",
+    "Divi's Laboratories": "DIVISLAB.NS", "Dixon Technologies": "DIXON.NS", "DLF": "DLF.NS",
+    "Dr Reddy's Labs": "DRREDDY.NS", "Eicher Motors": "EICHERMOT.NS", "Emami": "EMAMILTD.NS",
+    "Escorts Kubota": "ESCORTS.NS", "Exide Industries": "EXIDEIND.NS",
+    "Federal Bank": "FEDERALBNK.NS", "Fine Organic Industries": "FINEORG.NS",
+    "GAIL India": "GAIL.NS", "Gillette India": "GILLETTE.NS", "Glenmark Pharma": "GLENMARK.NS",
+    "Godrej Consumer Products": "GODREJCP.NS", "Godrej Properties": "GODREJPROP.NS",
+    "Granules India": "GRANULES.NS", "Grasim Industries": "GRASIM.NS",
+    "Havells India": "HAVELLS.NS", "HCL Technologies": "HCLTECH.NS", "HDFC AMC": "HDFCAMC.NS",
+    "HDFC Bank": "HDFCBANK.NS", "HDFC Life": "HDFCLIFE.NS", "Hero MotoCorp": "HEROMOTOCO.NS",
+    "Hindalco Industries": "HINDALCO.NS", "Hindustan Aeronautics (HAL)": "HAL.NS",
+    "Hindustan Petroleum": "HINDPETRO.NS", "Hindustan Unilever": "HINDUNILVR.NS",
+    "Hindustan Zinc": "HINDZINC.NS", "ICICI Bank": "ICICIBANK.NS", "ICICI Lombard": "ICICIGI.NS",
+    "ICICI Prudential Life": "ICICIPRULI.NS", "IDFC First Bank": "IDFCFIRSTB.NS",
+    "Indian Hotels (Taj)": "INDHOTEL.NS", "Indian Oil Corporation": "IOC.NS",
+    "Indian Railway Finance Corp": "IRFC.NS", "IndiGo (InterGlobe Aviation)": "INDIGO.NS",
+    "Indraprastha Gas": "IGL.NS", "IndusInd Bank": "INDUSINDBK.NS",
+    "Indus Towers": "INDUSTOWER.NS", "Info Edge (Naukri)": "NAUKRI.NS", "Infosys": "INFY.NS",
+    "IRCTC": "IRCTC.NS", "ITC": "ITC.NS", "J K Cement": "JKCEMENT.NS",
+    "Jindal Steel": "JINDALSTEL.NS", "JSW Steel": "JSWSTEEL.NS",
+    "Jubilant FoodWorks": "JUBLFOOD.NS", "Kajaria Ceramics": "KAJARIACER.NS",
+    "KEI Industries": "KEI.NS", "Kotak Mahindra Bank": "KOTAKBANK.NS",
+    "KPIT Technologies": "KPITTECH.NS", "L&T (Larsen & Toubro)": "LT.NS",
+    "L&T Technology Services": "LTTS.NS", "Laurus Labs": "LAURUSLABS.NS",
+    "LIC (Life Insurance Corp)": "LICI.NS", "LIC Housing Finance": "LICHSGFIN.NS",
+    "Lupin": "LUPIN.NS", "Mahindra & Mahindra": "M&M.NS", "Manappuram Finance": "MANAPPURAM.NS",
+    "Marico": "MARICO.NS", "Maruti Suzuki": "MARUTI.NS", "Max Financial Services": "MFSL.NS",
+    "Mphasis": "MPHASIS.NS", "Muthoot Finance": "MUTHOOTFIN.NS", "NATCO Pharma": "NATCOPHARM.NS",
+    "National Aluminium": "NATIONALUM.NS", "NBCC India": "NBCC.NS", "Nestle India": "NESTLEIND.NS",
+    "NMDC": "NMDC.NS", "NTPC": "NTPC.NS", "Oil India": "OIL.NS", "ONGC": "ONGC.NS",
+    "Persistent Systems": "PERSISTENT.NS", "Petronet LNG": "PETRONET.NS",
+    "Pidilite Industries": "PIDILITIND.NS", "PI Industries": "PIIND.NS",
+    "Polycab India": "POLYCAB.NS", "Power Finance Corp": "PFC.NS",
+    "Power Grid Corp": "POWERGRID.NS", "Punjab National Bank": "PNB.NS",
+    "Ratnamani Metals": "RATNAMANI.NS", "REC Limited": "RECLTD.NS", "Reliance": "RELIANCE.NS",
+    "SAIL": "SAIL.NS", "SBI (State Bank of India)": "SBIN.NS", "SBI Cards": "SBICARD.NS",
+    "SBI Life Insurance": "SBILIFE.NS", "Shree Cement": "SHREECEM.NS",
+    "Shriram Finance": "SHRIRAMFIN.NS", "Siemens": "SIEMENS.NS", "SRF Ltd": "SRF.NS",
+    "Star Health Insurance": "STARHEALTH.NS", "Sun Pharma": "SUNPHARMA.NS",
+    "Sun TV Network": "SUNTV.NS", "Swiggy": "SWIGGY.NS", "Tata Communications": "TATACOMM.NS",
+    "Tata Consumer Products": "TATACONSUM.NS", "Tata Elxsi": "TATAELXSI.NS",
+    "Tata Power": "TATAPOWER.NS", "Tata Steel": "TATASTEEL.NS", "TCS": "TCS.NS",
+    "Tech Mahindra": "TECHM.NS", "Titan Company": "TITAN.NS", "Torrent Pharma": "TORNTPHARM.NS",
+    "Torrent Power": "TORNTPOWER.NS", "Trent Ltd (Westside/Zudio)": "TRENT.NS",
+    "TVS Motor": "TVSMOTOR.NS", "UltraTech Cement": "ULTRACEMCO.NS",
+    "Union Bank of India": "UNIONBANK.NS", "United Breweries": "UBL.NS",
+    "United Spirits": "UNITDSPR.NS", "UPL Ltd": "UPL.NS", "Vedanta": "VEDL.NS",
+    "Voltas": "VOLTAS.NS", "Wipro": "WIPRO.NS", "Yes Bank": "YESBANK.NS",
+    "Zydus Lifesciences": "ZYDUSLIFE.NS",
 }
+DEFAULT_WATCHLIST = ["Reliance", "TCS", "HDFC Bank", "Infosys"]
+
 MODELS = ["LogReg", "RandomForest", "XGBoost", "LSTM"]
 LABELS = ["UP", "DOWN", "HOLD"]
 BADGE_CLASS = {"UP": "badge-up", "DOWN": "badge-down", "HOLD": "badge-hold"}
@@ -51,8 +120,28 @@ def badge(label):
     return f'<span class="badge {cls}">{label}</span>'
 
 
+with st.expander("📚 Naye ho stock market me? Yahan se shuru karo"):
+    st.markdown("""
+- **Stock/Share**: ek company ka chhota hissa jo tum khareed sakte ho.
+- **Open/Close**: din shuru/khatam hote waqt ka price.
+- **High/Low**: din ka sabse upar/neeche price.
+- **Volume**: us din kitne shares trade hue.
+- **SMA/EMA**: pichle N dino ka average price, trend samajhne ke liye.
+- **UP/DOWN/HOLD prediction**: model ka andaza hai, guarantee nahi.
+- Yeh dashboard ek **learning project** hai, real investment advice nahi hai.
+""")
+
 st.sidebar.header("Controls")
-choice = st.sidebar.selectbox("Select stock", list(stocks.keys()))
+st.sidebar.caption("🔍 Box par click karke company ka naam type karo (search)")
+choice = st.sidebar.selectbox("Select stock", sorted(NSE_STOCKS.keys()),
+                              index=sorted(NSE_STOCKS.keys()).index("Reliance"))
+watchlist = st.sidebar.multiselect("⭐ Pin your watchlist (max 5)",
+                                   options=sorted(NSE_STOCKS.keys()),
+                                   default=DEFAULT_WATCHLIST, max_selections=5)
+if not watchlist:
+    watchlist = DEFAULT_WATCHLIST
+
+st.sidebar.markdown("---")
 years = st.sidebar.select_slider("History (years)", options=[1, 2, 3, 5], value=5)
 risk_free_pct = st.sidebar.slider("Risk-free rate (%)", 0.0, 10.0, 6.0, 0.5)
 conf = st.sidebar.select_slider("VaR confidence (%)", options=[90, 95, 99], value=95)
@@ -69,6 +158,35 @@ def load_data(ticker):
                        progress=False, auto_adjust=True)
     data.columns = data.columns.get_level_values(0)
     return data
+
+
+@st.cache_data(ttl=3600)
+def get_company_info(ticker):
+    try:
+        info = yf.Ticker(ticker).info
+        mcap = info.get("marketCap")
+        return {
+            "name": info.get("longName") or info.get("shortName") or ticker,
+            "sector": info.get("sector", "N/A"),
+            "market_cap_cr": round(mcap / 1e7) if mcap else None,
+        }
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=1800)
+def get_news(ticker):
+    try:
+        items = yf.Ticker(ticker).news or []
+        out = []
+        for it in items[:4]:
+            title = it.get("title") or it.get("content", {}).get("title")
+            link = it.get("link") or it.get("content", {}).get("canonicalUrl", {}).get("url")
+            if title:
+                out.append((title, link))
+        return out
+    except Exception:
+        return []
 
 
 def last_years(data, n):
@@ -122,7 +240,8 @@ def evaluate(preds, model):
     return accuracy, np.mean(p_list), np.mean(r_list), np.mean(f_list)
 
 
-df = last_years(load_data(stocks[choice]), years)
+ticker = NSE_STOCKS[choice]
+df = last_years(load_data(ticker), years)
 df["SMA20"] = df["Close"].rolling(20).mean()
 df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
 m, ret, drawdown = risk_summary(df, risk_free_pct / 100, conf)
@@ -132,6 +251,11 @@ t1, t2, t3 = st.columns(3)
 t1.metric(f"{choice} latest close", f"₹{last:,.2f}", f"{(last / prev - 1) * 100:.2f}%")
 t2.metric("Period high", f"₹{df['High'].max():,.2f}")
 t3.metric("Period low", f"₹{df['Low'].min():,.2f}")
+
+info = get_company_info(ticker)
+if info:
+    mc = f"₹{info['market_cap_cr']:,.0f} Cr" if info["market_cap_cr"] else "N/A"
+    st.caption(f"🏢 {info['name']} · Sector: {info['sector']} · Market cap: {mc}")
 
 pct_from_peak = drawdown.iloc[-1] * 100
 st.caption(f"📌 {choice} abhi apne {years}-year peak se **{abs(pct_from_peak):.1f}%** neeche hai.")
@@ -154,6 +278,14 @@ with tab1:
     st.plotly_chart(fig)
     st.caption("Volume (kitne shares bike)")
     st.bar_chart(df["Volume"], height=150)
+
+    with st.expander("📰 Recent news"):
+        news_items = get_news(ticker)
+        if not news_items:
+            st.caption("News abhi available nahi hai.")
+        else:
+            for title, link in news_items:
+                st.markdown(f"- [{title}]({link})" if link else f"- {title}")
 
     with st.expander("📄 Show raw price data"):
         st.dataframe(df[["Open", "High", "Low", "Close", "Volume"]].tail(100), height=250)
@@ -270,13 +402,20 @@ with tab3:
         st.plotly_chart(cm_fig)
 
 with tab4:
+    st.caption("Yeh tumhare pinned watchlist ke stocks hain (sidebar se ⭐ Pin your watchlist badal sakte ho).")
     rows = []
-    for name, tk in stocks.items():
+    for name in watchlist:
+        tk = NSE_STOCKS[name]
         d = last_years(load_data(tk), years)
         s, _, _ = risk_summary(d, risk_free_pct / 100, conf)
-        rows.append({"Stock": name, "Volatility %": s["vol"], "Max drawdown %": s["dd"],
-                     f"VaR {conf}% (1 day) %": s["var"], "Sharpe": s["sharpe"],
-                     "Risk level": s["level"]})
+        last_p, prev_p = d["Close"].iloc[-1], d["Close"].iloc[-2]
+        rows.append({
+            "Stock": name, "Price ₹": round(last_p, 2),
+            "Day change %": round((last_p / prev_p - 1) * 100, 2),
+            "Volatility %": s["vol"], "Max drawdown %": s["dd"],
+            f"VaR {conf}% (1 day) %": s["var"], "Sharpe": s["sharpe"],
+            "Risk level": s["level"],
+        })
     comp = pd.DataFrame(rows)
     st.dataframe(comp, hide_index=True)
 
